@@ -1,71 +1,59 @@
 #_______________________________________________________________________________
-#                                                               HELP&EXTRA_PHONY
-EXTRA_PHONY := help auto clean_auto runall run_all
+#                                                                       SOFTWARE
+# source type
+C_EXT       := *.c
+CPLUS_EXT   := *.C *.cc *.cpp *.CPP *.c++ *.cp *.cxx
+INNER_MK    := topdir.mk config.mk base.mk tpl_make.mk tpl_top.mk
+# software
+CC          := gcc
+CXX         := g++
+GDC         := gdc
+AS          := nasm
+LD          := g++
+AR          := ar
+MAKE        := make
+MKDIR       := mkdir -p
+MV          := mv
+RM          := rm -fr
 
-help:
-#	@echo "____________________________________________________________"
-	@echo "make			Build All"
-	@echo "make target=debug|release|sample|test	Assign target"
-#	@echo "____________________________________________________________"
-	@echo "make auto		Auto gen-raw Makefile (skip top-Makefile and the exist)"
-	@echo "make clean_auto		Clear all auto-gen Makefile"
-#	@echo "____________________________________________________________"
-	@echo "make run		Run the file"
-	@echo "make runall		Run all executable file"
-
-auto:
-#	find * -type d -exec sh -c '(cd {} && ls)' \;
-	@find * -type d -exec sh -c '(\
-		cd {} && \
-		if ! [ -a Makefile ]; then \
-			cp $(TOPDIR)tpl_make.mk Makefile && \
-			cp $(TOPDIR)tpl_top.mk topdir.mk; \
-		fi; \
-		)' \;
-	@echo "Auto add Makefile finished"
-
-clean_auto:
-	-@find * -name topdir.mk | grep / | xargs -r -n1 rm
-	-@find * -name Makefile  | grep / | xargs -r -n1 rm
-	@echo "Clear all auto-gen Makefile finished"
-
-SplitLine := '=========================================='
-AllRunners := $(shell find * -executable -type f)
-runall run_all:
-	@echo $(SplitLine)
-	@$(foreach var,$(AllRunners),\
-		./$(var);\
-		echo $(SplitLine);\
-	)
-
+# no-support mix c,cpp
+ifneq (,$(wildcard $(C_EXT)))
+    CC      := gcc
+    LD      := gcc
+endif
+ifneq (,$(wildcard $(CPLUS_EXT)))
+    CC      := g++
+    LD      := g++
+endif
 #_______________________________________________________________________________
 #                                                             FLAGS DEFINE&MERGE
+# 1. choose one outdir, 2. replace the lib-dir, 3. then force outdir as abspath
 OUTDIR := $(strip $(if $(PROFILEMODE),$(G_OUTDIR_PROFILE)/,\
-                       $(if $(DEBUGMODE),$(G_OUTDIR_DEBUG)/,\
-                            $(G_OUTDIR_RELEASE)/)))
+               $(if $(DEBUGMODE),$(G_OUTDIR_DEBUG)/,\
+                    $(G_OUTDIR_RELEASE)/)))
 
 # macros, -D
 ifndef MACROS
-MACROS    = $(G_MACROS)
+MACROS      = $(G_MACROS)
 endif
 
 # include path, -I
 ifndef INCS
-INCS      = $(G_INCS)
+INCS        = $(G_INCS)
 endif
 
 # library path, -L, no-prefix 'lib'
 ifndef LIBDIRS
-LIBDIRS   = $(G_LIBDIRS)
+LIBDIRS     = $(G_LIBDIRS)
 endif
 
 # library, -l
 ifndef LIBS
-LIBS = $(G_LIBS)
+LIBS        = $(G_LIBS)
 endif
 
 ifndef CPPFLAGS
-CPPFLAGS  = $(G_CPPFLAGS)
+CPPFLAGS    = $(G_CPPFLAGS)
 ifdef VERBOSE
 $(info "Using Common-CPPFLAGS $(CPPFLAGS)" )
 endif
@@ -108,38 +96,10 @@ CXXFLAGS    := $(foreach var,$(MACROS), -D $(var) ) $(CXXFLAGS)
 LDFLAGS     := $(foreach var,$(LIBDIRS), -L$(var) ) $(LDFLAGS)
 #_______________________________________________________________________________
 #                                                             AUTO CREATE&DEFINE
-# source type
-C_EXT       := *.c
-CPLUS_EXT   := *.C *.cc *.cpp *.CPP *.c++ *.cp *.cxx
-INNER_MK    := topdir.mk config.mk base.mk tpl_make.mk tpl_top.mk
-# software
-CC          := gcc
-CXX         := g++
-GDC         := gdc
-AS          := nasm
-LD          := g++
-AR          := ar
-MAKE        := make
-MKDIR       := mkdir -p
-MV          := mv
-RM          := rm -fr
-
-# no-support mix c,cpp
-ifneq (,$(wildcard $(C_EXT)))
-    CC = gcc
-    LD = gcc
-endif
-ifneq (,$(wildcard $(CPLUS_EXT)))
-    CC = g++
-    LD = g++
-endif
-
-OUTDIR := $(strip $(if $(PROFILEMODE),$(G_OUTDIR_PROFILE)/,\
-               $(if $(DEBUGMODE),$(G_OUTDIR_DEBUG)/,\
-                    $(G_OUTDIR_RELEASE)/)))
+# abspath outdir and create directory
 OUTDIR := $(subst $(TOPDIR),$(TOPDIR)$(OUTDIR),$(CURDIR))/
-# create directory
 $(shell $(MKDIR) $(OUTDIR))
+
 
 ifneq (,$(findstring <auto>,$(SUBDIRS)))
     subdirs := $(shell find * -maxdepth 0 -type d)
@@ -178,6 +138,29 @@ SUBDIRS := $(filter-out $(SUBDIRS_NOT) \
     $(G_OUTDIR_DEBUG) $(G_OUTDIR_RELEASE) $(G_OUTDIR_PROFILE) \
     ,$(SUBDIRS))
 
+#_______________________________________________________________________________
+#                                                                       BUILDING
+# set debug mode if profiling
+ifdef PROFILEMODE
+export DEBUGMODE := 1
+endif
+
+# debug/profile build flags
+CPPFLAGS    := $(if $(PROFILEMODE),-pg -D PROFILE) $(if $(DEBUGMODE),\
+    -g3 -O0 -D DEBUG -Wall -Wextra,-D NDEBUG -O2) $(CPPFLAGS)
+CXXFLAGS    := $(if $(DEBUGMODE),-Woverloaded-virtual -Wreorder \
+    -Wctor-dtor-privacy) $(CXXFLAGS)
+DFLAGS      := $(if $(DEBUGMODE),,-frelease)
+ASFLAGS     := -f elf $(if $(DEBUGMODE),-g -dDEBUG,-dNDEBUG -O2) $(ASFLAGS)
+
+ifeq "$(strip $(LD))" "g++"
+    LDFLAGS := $(if $(PROFILEMODE),-pg) \
+        $(if $(or $(PROFILEMODE), $(DEBUGMODE)),,-Wl,-S) $(LDFLAGS)
+else
+    LDFLAGS := $(if $(PROFILEMODE),-pg) \
+        $(if $(or $(PROFILEMODE), $(DEBUGMODE)),,) $(LDFLAGS)
+endif
+
 # target should have source files
 ifeq ($(strip $(SOURCES)),)
 undefine TARGET
@@ -198,10 +181,10 @@ ifeq ($(strip $(TARGET)),<auto>)
     endif
 endif
 
+# auto fix target and define MKSTATICLIB
 undefine MKSTATICLIB
 undefine MKSHAREDLIB
 ifneq ($(strip $(TARGET)),)
-    # auto define MKSTATICLIB ...
     tmpext := $(strip $(suffix $(firstword $(TARGET))))
     ifeq ($(tmpext),)
     else ifeq ($(tmpext),.a)
@@ -209,56 +192,19 @@ ifneq ($(strip $(TARGET)),)
     else ifeq ($(tmpext),.so)
         MKSHAREDLIB = 1
     endif
-endif
 
-#_______________________________________________________________________________
-#                                                                       BUILDING
-# set debug mode if profiling
-ifdef PROFILEMODE
-export DEBUGMODE := 1
-endif
-
-# debug/profile build flags
-CPPFLAGS	:= $(if $(PROFILEMODE),-pg -D PROFILE) $(if $(DEBUGMODE),\
-	-g3 -O0 -D DEBUG -Wall -Wextra,-D NDEBUG -O2) $(CPPFLAGS)
-CXXFLAGS	:= $(if $(DEBUGMODE),-Woverloaded-virtual -Wreorder \
-	-Wctor-dtor-privacy) $(CXXFLAGS)
-DFLAGS		:= $(if $(DEBUGMODE),,-frelease)
-ASFLAGS		:= -f elf $(if $(DEBUGMODE),-g -dDEBUG,-dNDEBUG -O2) $(ASFLAGS)
-
-ifeq "$(strip $(LD))" "g++"
-LDFLAGS		:= $(if $(PROFILEMODE),-pg) \
-	$(if $(or $(PROFILEMODE), $(DEBUGMODE)),,-Wl,-S) $(LDFLAGS)
-else
-LDFLAGS		:= $(if $(PROFILEMODE),-pg) \
-	$(if $(or $(PROFILEMODE), $(DEBUGMODE)),,) $(LDFLAGS)
-endif
-
-# setup options for shared/static libs
-CPPFLAGS	:= $(if $(or $(MKSHAREDLIB),$(MKSTATICLIB)),-fPIC) $(CPPFLAGS)
-LDFLAGS		:= $(if $(LINKSTATIC),-static) $(LDFLAGS)
-
-# add libraries for d
-LIBS	:= $(LIBS) $(if $(filter %.d, $(SOURCES)), gphobos2 rt)
-
-# build flags for libraries
-LDPOSTFLAGS := $(addprefix -l,$(LIBS)) $(LDPOSTFLAGS)
-
-# work out object and dependency files
-OBJECTS     := $(addsuffix .o,  $(addprefix $(OUTDIR),$(basename $(SOURCES))))
-DEPFILES    := $(addsuffix .dep,$(addprefix $(OUTDIR),$(basename $(SOURCES))))
-
-# fixup target name
-ifdef TARGET
-    TARGET := $(patsubst %.so,%,$(patsubst %.a,%,$(TARGET)))
-    ifneq ($(strip $(MKSHAREDLIB) $(MKSTATICLIB)),)
-        TARGET := $(TARGET)$(if $(MKSHAREDLIB),.so,$(if $(MKSTATICLIB),.a))
-        ifndef NOLIBPREFIX
-            TARGET := lib$(patsubst lib%,%,$(TARGET))
-        endif
+    ifndef NOLIBPREFIX
+        TARGET := lib$(patsubst lib%,%,$(TARGET))
     endif
     TARGET := $(OUTDIR)$(TARGET)
 endif
+
+CPPFLAGS    := $(if $(or $(MKSHAREDLIB),$(MKSTATICLIB)),-fPIC) $(CPPFLAGS)
+LDFLAGS     := $(if $(LINKSTATIC),-static) $(LDFLAGS)
+LIBS        := $(LIBS) $(if $(filter %.d, $(SOURCES)), gphobos2 rt)
+LDPOSTFLAGS := $(addprefix -l,$(LIBS)) $(LDPOSTFLAGS)
+OBJECTS     := $(addsuffix .o,  $(addprefix $(OUTDIR),$(basename $(SOURCES))))
+DEPFILES    := $(addsuffix .dep,$(addprefix $(OUTDIR),$(basename $(SOURCES))))
 
 # Set up dependency generation build flags
 ifdef DEBUGMODE
@@ -284,8 +230,9 @@ endif
 #_______________________________________________________________________________
 #                                                                          RULES
 
-.PHONY:	all subdirs subprojs target clean clean_all run depend dep \
-	$(SUBDIRS) $(SUBPROJS) $(EXTRA_PHONY)
+.PHONY:	all subdirs subprojs target \
+	help auto clean_auto runall run_all clean clean_all run \
+	depend dep $(SUBDIRS) $(SUBPROJS)
 
 all: subdirs subprojs target
 
@@ -312,6 +259,42 @@ clean_all:
 
 run: target
 	@echo "Please run: "./$(TARGET)" <OR> 'make runall'"
+
+help:
+#	@echo "____________________________________________________________"
+	@echo "make			Build All"
+	@echo "make target=debug|release|sample|test	Assign target"
+#	@echo "____________________________________________________________"
+	@echo "make auto		Auto gen-raw Makefile (skip top-Makefile and the exist)"
+	@echo "make clean_auto		Clear all auto-gen Makefile"
+#	@echo "____________________________________________________________"
+	@echo "make run		Run the file"
+	@echo "make runall		Run all executable file"
+
+auto:
+	@find * -type d -exec sh -c '(\
+		cd {} && \
+		if ! [ -a Makefile ]; then \
+			cp $(TOPDIR)tpl_make.mk Makefile && \
+			cp $(TOPDIR)tpl_top.mk topdir.mk; \
+		fi; \
+		)' \;
+	@echo "Auto add Makefile finished"
+
+clean_auto:
+	-@find * -name topdir.mk | grep / | xargs -r -n1 rm
+	-@find * -name Makefile  | grep / | xargs -r -n1 rm
+	@echo "Clear all auto-gen Makefile finished"
+
+SplitLine := '=========================================='
+AllRunners := $(shell find * -executable -type f)
+runall run_all:
+	@echo $(SplitLine)
+	@$(foreach var,$(AllRunners),\
+		./$(var);\
+		echo $(SplitLine);\
+	)
+
 
 $(SUBDIRS) $(SUBPROJS):
 	@if [ "$@" = "$(firstword $(SUBDIRS) $(SUBPROJS))" ]; then echo; fi
