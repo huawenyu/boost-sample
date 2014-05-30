@@ -1,10 +1,14 @@
-# boost-sample
+boost-asio-proxy
+================
 
-Sample for getting started with C++ Boost Library
+Source code for examples from article [How to write simple HTTP proxy with Boost.Asio](http://alexott.net/en/cpp/BoostAsioProxy.html)
 
-# REF
+Source code requires Boost >= 1.42 & CMake >= 2.6.  Use following commands to configure &
+build example:
 
-http://alexott.net/en/cpp/BoostAsioProxy.html  
-https://github.com/alexott/boost-asio-proxy  
-https://github.com/alexott/boost-asio-examples  
-http://www.gamedev.net/blog/950/entry-2249317-a-guide-to-getting-started-with-boostasio/?pg=1  
+    mkdir build
+    cd build
+    cmake ..
+    make
+
+This work is licensed under a Creative Commons Attribution 3.0 Unported License.
