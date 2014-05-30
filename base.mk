@@ -89,12 +89,12 @@ endif
 MACROS      += $(EXTRA_MACROS)
 INCS        += $(EXTRA_INCS)
 LIBDIRS     += $(EXTRA_LIBDIRS)
+LIBDIRS     := $(subst $(REPLACE_ME),$(OUTDIR),$(LIBDIRS))
 LIBS        += $(EXTRA_LIBS)
 CPPFLAGS    += $(EXTRA_CPPFLAGS)
 LDFLAGS     += $(EXTRA_LDFLAGS)
 ARFLAGS     += $(EXTRA_ARFLAGS)
 
-LIBDIRS     := $(subst $(REPLACE_ME),$(OUTDIR),$(LIBDIRS))
 
 # includes
 CFLAGS      := $(foreach var,$(INCS), -I$(var) ) $(CFLAGS)
@@ -106,14 +106,12 @@ CPPFLAGS    := $(foreach var,$(MACROS), -D $(var) ) $(CPPFLAGS)
 CXXFLAGS    := $(foreach var,$(MACROS), -D $(var) ) $(CXXFLAGS)
 #
 LDFLAGS     := $(foreach var,$(LIBDIRS), -L$(var) ) $(LDFLAGS)
-LIBRARIES   += $(LIBS)
-
 #_______________________________________________________________________________
 #                                                             AUTO CREATE&DEFINE
 # source type
 C_EXT       := *.c
 CPLUS_EXT   := *.C *.cc *.cpp *.CPP *.c++ *.cp *.cxx
-INNER_MK    := topdir.mk edam.mk config.mk config_ext.mk tpl_make.mk tpl_top.mk
+INNER_MK    := topdir.mk config.mk base.mk tpl_make.mk tpl_top.mk
 # software
 CC          := gcc
 CXX         := g++
@@ -139,6 +137,9 @@ endif
 OUTDIR := $(strip $(if $(PROFILEMODE),$(G_OUTDIR_PROFILE)/,\
                $(if $(DEBUGMODE),$(G_OUTDIR_DEBUG)/,\
                     $(G_OUTDIR_RELEASE)/)))
+OUTDIR := $(subst $(TOPDIR),$(TOPDIR)$(OUTDIR),$(CURDIR))/
+# create directory
+$(shell $(MKDIR) $(OUTDIR))
 
 ifneq (,$(findstring <auto>,$(SUBDIRS)))
     subdirs := $(shell find * -maxdepth 0 -type d)
@@ -211,5 +212,148 @@ ifneq ($(strip $(TARGET)),)
 endif
 
 #_______________________________________________________________________________
-#                                                                   IGNORE BELOW
-include $(TOPDIR)edam.mk
+#                                                                       BUILDING
+# set debug mode if profiling
+ifdef PROFILEMODE
+export DEBUGMODE := 1
+endif
+
+# debug/profile build flags
+CPPFLAGS	:= $(if $(PROFILEMODE),-pg -D PROFILE) $(if $(DEBUGMODE),\
+	-g3 -O0 -D DEBUG -Wall -Wextra,-D NDEBUG -O2) $(CPPFLAGS)
+CXXFLAGS	:= $(if $(DEBUGMODE),-Woverloaded-virtual -Wreorder \
+	-Wctor-dtor-privacy) $(CXXFLAGS)
+DFLAGS		:= $(if $(DEBUGMODE),,-frelease)
+ASFLAGS		:= -f elf $(if $(DEBUGMODE),-g -dDEBUG,-dNDEBUG -O2) $(ASFLAGS)
+
+ifeq "$(strip $(LD))" "g++"
+LDFLAGS		:= $(if $(PROFILEMODE),-pg) \
+	$(if $(or $(PROFILEMODE), $(DEBUGMODE)),,-Wl,-S) $(LDFLAGS)
+else
+LDFLAGS		:= $(if $(PROFILEMODE),-pg) \
+	$(if $(or $(PROFILEMODE), $(DEBUGMODE)),,) $(LDFLAGS)
+endif
+
+# setup options for shared/static libs
+CPPFLAGS	:= $(if $(or $(MKSHAREDLIB),$(MKSTATICLIB)),-fPIC) $(CPPFLAGS)
+LDFLAGS		:= $(if $(LINKSTATIC),-static) $(LDFLAGS)
+
+# add libraries for d
+LIBS	:= $(LIBS) $(if $(filter %.d, $(SOURCES)), gphobos2 rt)
+
+# build flags for libraries
+LDPOSTFLAGS := $(addprefix -l,$(LIBS)) $(LDPOSTFLAGS)
+
+# work out object and dependency files
+OBJECTS     := $(addsuffix .o,  $(addprefix $(OUTDIR),$(basename $(SOURCES))))
+DEPFILES    := $(addsuffix .dep,$(addprefix $(OUTDIR),$(basename $(SOURCES))))
+
+# fixup target name
+ifdef TARGET
+    TARGET := $(patsubst %.so,%,$(patsubst %.a,%,$(TARGET)))
+    ifneq ($(strip $(MKSHAREDLIB) $(MKSTATICLIB)),)
+        TARGET := $(TARGET)$(if $(MKSHAREDLIB),.so,$(if $(MKSTATICLIB),.a))
+        ifndef NOLIBPREFIX
+            TARGET := lib$(patsubst lib%,%,$(TARGET))
+        endif
+    endif
+    TARGET := $(OUTDIR)$(TARGET)
+endif
+
+# Set up dependency generation build flags
+ifdef DEBUGMODE
+ifndef PROFILEMODE
+FIXUP_DEPENDENCY_FILES = \
+	@sed 's/\#.*//;s/^[^:]*://;s/^[ \t]*//;s/ *\\$$//;/^$$/d;s/$$/:/' < \
+	$(basename $<).dep > .$$$$~; cat .$$$$~ >> $(basename $<).dep; rm .$$$$~; \
+	$(MV) $(basename $<).dep $(OUTDIR)$(basename $<).dep;
+DEPFLAGS	= -MMD -MP -MF $(OUTDIR)$(basename $<).dep
+endif
+endif
+
+# include dependencies
+ifneq "$(MAKECMDGOALS)" "clean"
+ifneq "$(MAKECMDGOALS)" "clean_all"
+-include $(DEPFILES)
+endif
+endif
+
+# default rule
+.DEFAULT_GOAL := all
+
+#_______________________________________________________________________________
+#                                                                          RULES
+
+.PHONY:	all subdirs subprojs target clean clean_all run depend dep \
+	$(SUBDIRS) $(SUBPROJS) $(EXTRA_PHONY)
+
+all: subdirs subprojs target
+
+subdirs: $(SUBDIRS)
+
+subprojs: $(SUBPROJS)
+
+target: $(TARGET)
+
+clean:
+ifneq ($(or $(SUBDIRS),$(SUBPROJS)),)
+ifneq "$(MAKECMDGOALS)" "clean_all"
+	@echo "NOT RECURSING - use 'make clean_all' to clean subdirs and " \
+		"subprojs as well"
+endif
+endif
+	rm -f $(OBJECTS) $(TARGET) $(DEPFILES) core *~
+
+#clean_all: subdirs subprojs clean
+clean_all:
+	@$(RM) $(G_OUTDIR_DEBUG)
+	@$(RM) $(G_OUTDIR_RELEASE)
+	@$(RM) $(G_OUTDIR_PROFILE)
+
+run: target
+	@echo "Please run: "./$(TARGET)" <OR> 'make runall'"
+
+$(SUBDIRS) $(SUBPROJS):
+	@if [ "$@" = "$(firstword $(SUBDIRS) $(SUBPROJS))" ]; then echo; fi
+	@$(MAKE) $(if $(filter $@,$(SUBPROJS)), -f $@.mk, -C $@) \
+		$(filter-out $(SUBDIRS) $(SUBPROJS) subdirs subprojs,$(MAKECMDGOALS))
+	@echo
+
+$(TARGET): $(OBJECTS)
+ifdef MKSTATICLIB
+	$(AR) rcs $(TARGET) $(OBJECTS)
+else
+	$(LD) $(if $(MKSHAREDLIB),-shared) -o $(TARGET) $(LDFLAGS) $(OBJECTS) $(LDPOSTFLAGS)
+endif
+
+$(OUTDIR)%.o: %.c
+	$(CC) -c $(CPPFLAGS) $(DEPFLAGS) $(CFLAGS) -o $@ $<
+
+$(OUTDIR)%.o: %.cc
+	$(CXX) -c $(CPPFLAGS) $(DEPFLAGS) $(CXXFLAGS) -o $@ $<
+$(OUTDIR)%.o: %.C
+	$(CXX) -c $(CPPFLAGS) $(DEPFLAGS) $(CXXFLAGS) -o $@ $<
+$(OUTDIR)%.o: %.cpp
+	$(CXX) -c $(CPPFLAGS) $(DEPFLAGS) $(CXXFLAGS) -o $@ $<
+
+$(OUTDIR)%.o: %.d
+	$(GDC) -c $(CPPFLAGS) $(DFLAGS) -o $@ $<
+
+$(OUTDIR)%.o: %.s
+	$(AS) $(ASFLAGS) -o $@ $<
+ifdef DEBUGMODE
+	$(AS) $(ASFLAGS) -M $< > $(basename $<).dep
+	$(FIXUP_DEPENDENCY_FILES)
+endif
+$(OUTDIR)%.o: %.S
+	$(AS) $(ASFLAGS) -o $@ $<
+ifdef DEBUGMODE
+	$(AS) $(ASFLAGS) -M $< > $(basename $<).dep
+	$(FIXUP_DEPENDENCY_FILES)
+endif
+$(OUTDIR)%.o: %.asm
+	$(AS) $(ASFLAGS) -o $@ $<
+ifdef DEBUGMODE
+	$(AS) $(ASFLAGS) -M $< > $(basename $<).dep
+	$(FIXUP_DEPENDENCY_FILES)
+endif

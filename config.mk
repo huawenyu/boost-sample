@@ -19,4 +19,4 @@ G_OUTDIR_RELEASE = out_release
 G_OUTDIR_PROFILE = out_profile
 #_______________________________________________________________________________
 #                                                                   IGNORE BELOW
-include $(TOPDIR)config_ext.mk
+include $(TOPDIR)base.mk
