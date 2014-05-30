@@ -170,10 +170,6 @@ endif
 CPPFLAGS	:= $(if $(or $(MKSHAREDLIB),$(MKSTATICLIB)),-fPIC) $(CPPFLAGS)
 LDFLAGS		:= $(if $(LINKSTATIC),-static) $(LDFLAGS)
 
-# object debug/profile suffix
-BUILDSUFFIX	:= $(if $(PROFILEMODE),_p,$(if $(DEBUGMODE),_d))
-
-LIBRARIES	:= $(addsuffix $(BUILDSUFFIX),$(LIBRARIES))
 # add libraries for d
 LIBRARIES	:= $(LIBRARIES) $(if $(filter %.d, $(SOURCES)), gphobos2 rt)
 
@@ -181,19 +177,23 @@ LIBRARIES	:= $(LIBRARIES) $(if $(filter %.d, $(SOURCES)), gphobos2 rt)
 LDPOSTFLAGS := $(addprefix -l,$(LIBRARIES)) $(LDPOSTFLAGS)
 
 # work out object and dependency files
-OBJECTS		:= $(addsuffix $(BUILDSUFFIX).o,$(basename $(SOURCES)))
-DEPFILES	:= $(addsuffix .dep,$(basename $(SOURCES)))
+OBJECTS     := $(addsuffix .o,$(subst $(TOPDIR),$(TOPDIR)$(OUTDIR),$(abspath $(basename $(SOURCES)))))
+DEPFILES    := $(addsuffix .dep,$(subst $(TOPDIR),$(TOPDIR)$(OUTDIR),$(abspath $(basename $(SOURCES)))))
+
+# create directory
+$(foreach dirname,$(sort $(dir $(OBJECTS))),\
+    $(shell $(MKDIR) $(dirname)))
 
 # fixup target name
 ifdef TARGET
-TARGET		:= $(basename $(TARGET))$(BUILDSUFFIX)$(suffix $(TARGET))
-TARGET		:= $(patsubst %.so,%,$(patsubst %.a,%,$(TARGET)))
-ifneq ($(strip $(MKSHAREDLIB) $(MKSTATICLIB)),)
-TARGET		:= $(TARGET)$(if $(MKSHAREDLIB),.so,$(if $(MKSTATICLIB),.a))
-ifndef NOLIBPREFIX
-TARGET		:= lib$(patsubst lib%,%,$(TARGET))
-endif
-endif
+    TARGET := $(patsubst %.so,%,$(patsubst %.a,%,$(TARGET)))
+    ifneq ($(strip $(MKSHAREDLIB) $(MKSTATICLIB)),)
+        TARGET := $(TARGET)$(if $(MKSHAREDLIB),.so,$(if $(MKSTATICLIB),.a))
+        ifndef NOLIBPREFIX
+            TARGET := lib$(patsubst lib%,%,$(TARGET))
+        endif
+    endif
+    TARGET := $(subst $(TOPDIR),$(TOPDIR)$(OUTDIR),$(abspath $(TARGET)))
 endif
 
 # Set up dependency generation build flags and, for those languages where the
@@ -225,7 +225,7 @@ endif
 #_______________________________________________________________________________
 #                                                                          RULES
 
-.PHONY:	all subdirs subprojs target clean clean_all run debug depend dep \
+.PHONY:	all subdirs subprojs target clean clean_all run depend dep \
 	$(SUBDIRS) $(SUBPROJS) $(EXTRA_PHONY)
 
 all: subdirs subprojs target
@@ -245,19 +245,14 @@ endif
 endif
 	rm -f $(OBJECTS) $(TARGET) $(DEPFILES) core *~
 
-clean_all: subdirs subprojs clean
+#clean_all: subdirs subprojs clean
+clean_all:
+	@$(RM) $(G_OUTDIR_DEBUG)
+	@$(RM) $(G_OUTDIR_RELEASE)
+	@$(RM) $(G_OUTDIR_PROFILE)
 
-ifndef MKSTATICLIB
-ifndef MKSHAREDLIB
 run: target
-#	./$(TARGET)
 	@echo "Please run: "./$(TARGET)" <OR> 'make runall'"
-
-debug: target
-#	gdb ./$(TARGET)
-	@echo "Please using: "gdb $(TARGET)""
-endif
-endif
 
 $(SUBDIRS) $(SUBPROJS):
 	@if [ "$@" = "$(firstword $(SUBDIRS) $(SUBPROJS))" ]; then echo; fi
@@ -273,32 +268,32 @@ else
 	$(LD) $(if $(MKSHAREDLIB),-shared) -o $(TARGET) $(LDFLAGS) $(OBJECTS) $(LDPOSTFLAGS)
 endif
 
-%.o %_d.o %_p.o: %.c
+$(TOPDIR)$(OUTDIR)%.o: $(TOPDIR)%.c
 	$(CC) -c $(CPPFLAGS) $(DEPFLAGS) $(CFLAGS) -o $@ $<
 
-%.o %_d.o %_p.o: %.cc
+$(TOPDIR)$(OUTDIR)%.o: $(TOPDIR)%.cc
 	$(CXX) -c $(CPPFLAGS) $(DEPFLAGS) $(CXXFLAGS) -o $@ $<
-%.o %_d.o %_p.o: %.C
+$(TOPDIR)$(OUTDIR)%.o: $(TOPDIR)%.C
 	$(CXX) -c $(CPPFLAGS) $(DEPFLAGS) $(CXXFLAGS) -o $@ $<
-%.o %_d.o %_p.o: %.cpp
+$(TOPDIR)$(OUTDIR)%.o: $(TOPDIR)%.cpp
 	$(CXX) -c $(CPPFLAGS) $(DEPFLAGS) $(CXXFLAGS) -o $@ $<
 
-%.o %_d.o %_p.o: %.d
+$(TOPDIR)$(OUTDIR)%.o: $(TOPDIR)%.d
 	$(GDC) -c $(CPPFLAGS) $(DFLAGS) -o $@ $<
 
-%.o %_d.o %_p.o: %.s
+$(TOPDIR)$(OUTDIR)%.o: $(TOPDIR)%.s
 	$(AS) $(ASFLAGS) -o $@ $<
 ifdef DEBUGMODE
 	$(AS) $(ASFLAGS) -M $< > $(basename $<).dep
 	$(FIXUP_DEPENDENCY_FILES)
 endif
-%.o %_d.o %_p.o: %.S
+$(TOPDIR)$(OUTDIR)%.o: $(TOPDIR)%.S
 	$(AS) $(ASFLAGS) -o $@ $<
 ifdef DEBUGMODE
 	$(AS) $(ASFLAGS) -M $< > $(basename $<).dep
 	$(FIXUP_DEPENDENCY_FILES)
 endif
-%.o %_d.o %_p.o: %.asm
+$(TOPDIR)$(OUTDIR)%.o: $(TOPDIR)%.asm
 	$(AS) $(ASFLAGS) -o $@ $<
 ifdef DEBUGMODE
 	$(AS) $(ASFLAGS) -M $< > $(basename $<).dep

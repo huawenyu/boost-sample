@@ -5,6 +5,9 @@
 # 1, enable, otherwise comment it
 #VERBOSE   = 1
 #DEBUGMODE = 1
+G_OUTDIR_DEBUG   = out_debug
+G_OUTDIR_RELEASE = out_release
+G_OUTDIR_PROFILE = out_profile
 
 G_MACROS  =
 G_INCS    = .

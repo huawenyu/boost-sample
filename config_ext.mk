@@ -116,6 +116,9 @@ AS          := nasm
 LD          := g++
 AR          := ar
 MAKE        := make
+MKDIR       := mkdir -p
+RM          := rm -fr
+
 # no-support mix c,cpp
 ifneq (,$(wildcard $(C_EXT)))
     CC = gcc
@@ -125,6 +128,10 @@ ifneq (,$(wildcard $(CPLUS_EXT)))
     CC = g++
     LD = g++
 endif
+
+OUTDIR := $(strip $(if $(PROFILEMODE),$(G_OUTDIR_PROFILE)/,\
+               $(if $(DEBUGMODE),$(G_OUTDIR_DEBUG)/,\
+                    $(G_OUTDIR_RELEASE)/)))
 
 ifneq (,$(findstring <auto>,$(SUBDIRS)))
     subdirs := $(shell find * -maxdepth 0 -type d)
@@ -159,7 +166,9 @@ endif
 # exclude list
 SOURCES := $(filter-out $(SOURCES_NOT),$(SOURCES))
 SUBPROJS := $(filter-out $(SUBPROJS_NOT),$(SUBPROJS))
-SUBDIRS := $(filter-out $(SUBDIRS_NOT),$(SUBDIRS))
+SUBDIRS := $(filter-out $(SUBDIRS_NOT) \
+    $(G_OUTDIR_DEBUG) $(G_OUTDIR_RELEASE) $(G_OUTDIR_PROFILE) \
+    ,$(SUBDIRS))
 
 # target should have source files
 ifeq ($(strip $(SOURCES)),)
