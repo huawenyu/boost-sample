@@ -206,9 +206,10 @@ endif
 ifdef DEBUGMODE
 ifndef PROFILEMODE
 FIXUP_DEPENDENCY_FILES = \
-	sed 's/\#.*//;s/^[^:]*://;s/^[ \t]*//;s/ *\\$$//;/^$$/d;s/$$/:/' < \
-	$(basename $<).dep > .$$$$~; cat .$$$$~ >> $(basename $<).dep; rm .$$$$~;
-DEPFLAGS	= -MMD -MP -MF $(basename $<).dep
+	@sed 's/\#.*//;s/^[^:]*://;s/^[ \t]*//;s/ *\\$$//;/^$$/d;s/$$/:/' < \
+	$(basename $<).dep > .$$$$~; cat .$$$$~ >> $(basename $<).dep; rm .$$$$~; \
+	$(MV) $(basename $<).dep $(subst $(TOPDIR),$(TOPDIR)$(OUTDIR),$(abspath $(basename $<).dep));
+DEPFLAGS	= -MMD -MP -MF $(subst $(TOPDIR),$(TOPDIR)$(OUTDIR),$(abspath $(basename $<).dep))
 endif
 endif
 

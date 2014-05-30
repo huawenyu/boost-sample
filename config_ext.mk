@@ -40,6 +40,10 @@ runall run_all:
 
 #_______________________________________________________________________________
 #                                                             FLAGS DEFINE&MERGE
+OUTDIR := $(strip $(if $(PROFILEMODE),$(G_OUTDIR_PROFILE)/,\
+                       $(if $(DEBUGMODE),$(G_OUTDIR_DEBUG)/,\
+                            $(G_OUTDIR_RELEASE)/)))
+
 # macros, -D
 ifndef MACROS
 MACROS    = $(G_MACROS)
@@ -90,6 +94,8 @@ CPPFLAGS    += $(EXTRA_CPPFLAGS)
 LDFLAGS     += $(EXTRA_LDFLAGS)
 ARFLAGS     += $(EXTRA_ARFLAGS)
 
+LIBDIRS     := $(subst $(REPLACE_ME),$(OUTDIR),$(LIBDIRS))
+
 # includes
 CFLAGS      := $(foreach var,$(INCS), -I$(var) ) $(CFLAGS)
 CPPFLAGS    := $(foreach var,$(INCS), -I$(var) ) $(CPPFLAGS)
@@ -117,6 +123,7 @@ LD          := g++
 AR          := ar
 MAKE        := make
 MKDIR       := mkdir -p
+MV          := mv
 RM          := rm -fr
 
 # no-support mix c,cpp
