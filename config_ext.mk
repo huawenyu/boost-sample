@@ -156,6 +156,11 @@ ifeq ($(strip $(SOURCES)),<auto>)
     endif
 endif
 
+# exclude list
+SOURCES := $(filter-out $(SOURCES_NOT),$(SOURCES))
+SUBPROJS := $(filter-out $(SUBPROJS_NOT),$(SUBPROJS))
+SUBDIRS := $(filter-out $(SUBDIRS_NOT),$(SUBDIRS))
+
 # target should have source files
 ifeq ($(strip $(SOURCES)),)
 undefine TARGET
