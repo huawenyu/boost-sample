@@ -4,12 +4,17 @@ Sample for getting started with C++ Boost Library
 
 # build boost library
 
+Assume we have download source from www.boost.org and untar.  
+And prepare to install into /usr/include/boost.
 ```
-... download source from http://www.boost.org/ ...
-... un-zip it use tar, cd boost* ...
 $ ./bootstrap.sh --prefix=/usr && ./b2 stage threading=multi link=shared
-... as root user, install into /usr/include/boost ...
-./b2 install threading=multi link=shared
+$ sudo ./b2 install threading=multi link=shared
+$ rm -fr bin.v2      <<< remove the intermediate files
+... code a program need shared-library, such as regex ...
+$ make
+$ ldd our_program    <<< list needed shared-library
+$ sudo ldconfig      <<< reload new build libraries
+$ ./our_program
 ```
 
 # REF

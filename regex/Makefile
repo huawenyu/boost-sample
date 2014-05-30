@@ -12,7 +12,7 @@ SUBDIRS        = #dir1 dir2 <auto> dir_n dir_m
 # add more to global config
 EXTRA_MACROS   =
 EXTRA_INCS     = #$(TOPDIR)include
-EXTRA_LIBDIRS  = $(TOPDIR)../lib_boost/boost_1_55_0/stage/lib
+EXTRA_LIBDIRS  =
 EXTRA_LIBS     = boost_regex
 EXTRA_CPPFLAGS =
 EXTRA_LDFLAGS  =

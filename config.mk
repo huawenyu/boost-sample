@@ -4,7 +4,7 @@
 #                                                         PROJECTS GLOBAL CONFIG
 # 1, enable, otherwise comment it
 #VERBOSE   = 1
-DEBUGMODE = 1
+#DEBUGMODE = 1
 
 G_MACROS  =
 G_INCS    = .
